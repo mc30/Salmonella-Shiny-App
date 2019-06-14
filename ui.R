@@ -1,16 +1,12 @@
-#
-# This is the user-interface definition of a Shiny web application. You can
-# run the application by clicking 'Run App' above.
-#
-# Find out more about building applications with Shiny here:
+### Salmonella Shiny App
 # 
-#    http://shiny.rstudio.com/
+# This is the user-interface definition of a Shiny web application.
 #
+###
 
 
 library(shiny)
 library(plotly)
-library(shinyjs)
 
 library(ISOweek)
 # library(lubridate)
@@ -20,18 +16,6 @@ shinyUI(
   fluidPage(
     # Application title
     # titlePanel("Estimation of WGS capacity"),
-    
-    useShinyjs(),
-    # code to reset plotlys event_data("plotly_click", source="A") to NULL -> executed upon action button click
-    # note that "A" needs to be replaced with plotly source string if used
-    extendShinyjs(text = "shinyjs.resetSerClick = function() { Shiny.onInputChange('.clientValue-plotly_click-serPlot', 'null'); }"),
-    extendShinyjs(text = "shinyjs.resetRegClick = function() { Shiny.onInputChange('.clientValue-plotly_click-regPlot', 'null'); }"),
-    
-    
-    extendShinyjs(text = "shinyjs.resetAgeClick = function() { Shiny.onInputChange('.clientValue-plotly_click-agePlot', 'null'); }"),
-    extendShinyjs(text = "shinyjs.resetDepClick = function() { Shiny.onInputChange('.clientValue-plotly_click-depPlot', 'null'); }"),
-    
-    extendShinyjs(text = "shinyjs.resetWeekClick = function() { Shiny.onInputChange('.clientValue-plotly_click-mainPlot', 'null'); }"),
     
     # Sidebar with a slider input for number of bins 
     sidebarLayout(
