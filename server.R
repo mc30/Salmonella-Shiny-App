@@ -10,14 +10,7 @@ source("helpers.R")
 # Set the size limit for file uploads. If unset, the maximum request size defaults to 5MB.
 options(shiny.maxRequestSize = 30 * 1024 ^ 2)
 
-
-
-# Maximum capacity for sequencing (192 sequences per week)
-maxSeqCapacity <- 192
-
-# Maximum capacity for sequencing (6000 sequences per year)
-maxAnnualCapacity <- 6000
-
+# Age groups cut-offs
 ageGroups <- c(-1, 1, 6, 14, 65, 100)
 
 smallFont <- list(
@@ -26,12 +19,6 @@ smallFont <- list(
   # color = "#7f7f7f"
   color = "black"
 )
-
-
-
-selectedWeek <- NA
-
-
 
 
 
@@ -119,7 +106,7 @@ shinyServer(function(input, output, session) {
     updateSelectInput(session, inputId = "department", choices = c("All departments", sort(unique(sData$Departement))))
     
     # TODO: update subtypes menu
-    # selSerotype <- getSelectedSerotype()
+    # selSerotype <- input$serotype
     # if (selSerotype != "All serotypes") {
     #   tmp <- sData[which(sData$Serotype_FINAL == selSerotype), ]
     #   
@@ -152,100 +139,26 @@ shinyServer(function(input, output, session) {
     return(sData)
   })
   
-  # Reactive conductor for selected region
-  getSelectedRegion <- reactive({
-    s <- event_data("plotly_click", source = "regPlot")
-    if (length(s)) {
-      if (input$region != s$x) {
-        updateSelectInput(session, inputId = "region", selected = s$x)
-        
-        # data <- loadedData()
-        # tmp <- data[which(data$region == s$x), ]
-        # 
-        # print(paste0("Available deps: ", sort(unique(tmp$Departement))))
-        # updateSelectInput(session, inputId = "department", choices = c("All departments", sort(unique(tmp$Departement))))
-        # updateSelectInput(session, inputId = "department", selected = "All departments")
-      } else {
-        updateSelectInput(session, inputId = "region", selected = "All regions")
-        
-        # updateSelectInput(session, inputId = "department", choices = c("All departments"))
-        # updateSelectInput(session, inputId = "department", selected = "All departments")
-      }
-      
-      
-      # Update department menu: TODO: cancel double-update
-      selRegion <- input$region
-      selDep <- getSelectedDepartment()
-      if (selRegion != "All regions") {
-        tmp <- data[which(data$region == selRegion), ]
-        print(paste0("!!! ", selDep))
-
-        if (selDep != "All departments") {
-          updateSelectInput(session, inputId = "department", choices = c("All departments", sort(unique(tmp$Departement))))
-          # updateSelectInput(session, inputId = "department", selected = selDep)
-        }
-      }
-      
-      # js$resetRegClick()
+  observeEvent(event_data("plotly_click", source = "mainPlot", priority = "event"), {
+    s <- event_data("plotly_click", source = "mainPlot")
+    
+    if (input$week != data.table::isoweek(as.Date(s$x, origin = "1970-01-01"))) { # Uncomment to enable selection of all weeks by double-click
+      selectedWeek <- as.Date(s$x, origin = "1970-01-01")
+      weekNum <- data.table::isoweek(selectedWeek)
+      # weekNum <- lubridate::isoweek(selectedWeek)
+      updateSelectInput(session, inputId = "week", selected = weekNum)
     }
     
-    return(input$region)
+    if (input$week == data.table::isoweek(as.Date(s$x, origin = "1970-01-01")))  {
+      print("Trigger")
+      updateSelectInput(session, inputId = "week", selected = "All weeks")
+      selectedWeek <- "All weeks"
+    }
   })
   
-  # Reactive conductor for selected serotype
-  getSelectedSerotype <- reactive({
-    click <- event_data("plotly_click", source = "serPlot")
-    if (length(click)) {
-      if (input$serotype != click$x) {
-        updateSelectInput(session, inputId = "serotype", selected = click$x)
-      } else {
-        updateSelectInput(session, inputId = "serotype", selected = "All serotypes")
-      }
-      
-      # js$resetSerClick()
-    }
-    
-    return(input$serotype)
-  })
   
   getSelectedWeek <- function() {
     print(paste0("input week: ", input$week))
-    
-    # s <- event_data("plotly_click", source = "mainPlot")
-    # if (length(s)) {
-    #   selectedWeek <- as.Date(s$x, origin = "1970-01-01")
-    #   weekNum <- data.table::isoweek(selectedWeek)
-    #   updateSelectInput(session, inputId = "week", selected = weekNum)
-    #   
-    #   # js$resetWeekClick()
-    # }
-    # 
-    # if (input$week == "All weeks") {
-    #   js$resetWeekClick()
-    #   return("All weeks")
-    # }
-    # 
-    # # if (input$week != ...)
-    # 
-    # # selectedWeek <- as.Date(input$week, origin = "1970-01-01")
-    # return(selectedWeek)
-    
-    
-    s <- event_data("plotly_click", source = "mainPlot")
-    if (length(s)) {
-      print(paste0("s$x: ", s$x))
-      if (input$week != data.table::isoweek(as.Date(s$x, origin = "1970-01-01"))) { # Uncomment to enable selection of all weeks by double-click
-        selectedWeek <- as.Date(s$x, origin = "1970-01-01")
-        weekNum <- data.table::isoweek(selectedWeek)
-        # weekNum <- lubridate::isoweek(selectedWeek)
-        updateSelectInput(session, inputId = "week", selected = weekNum)
-      } else {
-        updateSelectInput(session, inputId = "week", selected = "All weeks")
-        selectedWeek <- "All weeks"
-      }
-      
-      # js$resetWeekClick()
-    }
     
     if (input$week == "All weeks")
       return("All weeks")
@@ -259,12 +172,66 @@ shinyServer(function(input, output, session) {
   }
   
   
-  # Reactive conductor for selected serotype
-  getSelectedAgeGroup <- reactive({
-    click <- event_data("plotly_click", source = "agePlot")
-    if (length(click)) {
-      # print(paste0("clicked: ", click$x))
-      up <- as.integer(strsplit(click$x, " ")[[1]][2])
+  
+  observeEvent(event_data("plotly_click", source = "regPlot", priority = "event"), {
+    s <- event_data("plotly_click", source = "regPlot")
+    
+    if (length(s)) {
+      if (input$region != s$x) {
+        updateSelectInput(session, inputId = "region", selected = s$x)
+        
+        # TODO: update departments
+        
+        # data <- loadedData()
+        # tmp <- data[which(data$region == s$x), ]
+        # 
+        # print(paste0("Available deps: ", sort(unique(tmp$Departement))))
+        # updateSelectInput(session, inputId = "department", choices = c("All departments", sort(unique(tmp$Departement))))
+        # updateSelectInput(session, inputId = "department", selected = "All departments")
+      } else {
+        updateSelectInput(session, inputId = "region", selected = "All regions")
+        
+        # TODO: update departments
+        
+        # updateSelectInput(session, inputId = "department", choices = c("All departments"))
+        # updateSelectInput(session, inputId = "department", selected = "All departments")
+      }
+      
+      
+      # # Update department menu: TODO: cancel double-update
+      # selRegion <- input$region
+      # selDep <- input$department
+      # if (selRegion != "All regions") {
+      #   tmp <- data[which(data$region == selRegion), ]
+      #   print(paste0("!!! ", selDep))
+      # 
+      #   if (selDep != "All departments") {
+      #     updateSelectInput(session, inputId = "department", choices = c("All departments", sort(unique(tmp$Departement))))
+      #     updateSelectInput(session, inputId = "department", selected = selDep)
+      #   }
+      # }
+    }
+  })
+  
+  
+  observeEvent(event_data("plotly_click", source = "serPlot", priority = "event"), {
+    s <- event_data("plotly_click", source = "serPlot")
+    
+    if (length(s)) {
+      if (input$serotype != s$x) {
+        updateSelectInput(session, inputId = "serotype", selected = s$x)
+      } else {
+        updateSelectInput(session, inputId = "serotype", selected = "All serotypes")
+      }
+    }
+  })
+  
+  
+  observeEvent(event_data("plotly_click", source = "agePlot", priority = "event"), {
+    s <- event_data("plotly_click", source = "agePlot")
+    
+    if (length(s)) {
+      up <- as.integer(strsplit(s$x, " ")[[1]][2])
       i <- which(ageGroups == up)
       selAgeGroup <- sprintf("%i to %i", ageGroups[i - 1] + 1, ageGroups[i])
       
@@ -274,17 +241,13 @@ shinyServer(function(input, output, session) {
         updateSelectInput(session, inputId = "ageGroup", selected = selAgeGroup)
       else
         updateSelectInput(session, inputId = "ageGroup", selected = "All age groups")
-      
-      # js$resetAgeClick()
     }
-    
-    return(input$ageGroup)
   })
   
   
-  # Reactive conductor for selected department
-  getSelectedDepartment <- reactive({
+  observeEvent(event_data("plotly_click", source = "depPlot", priority = "event"), {
     click <- event_data("plotly_click", source = "depPlot")
+    
     if (length(click)) {
       print(paste0("Selected department: ", click$x))
       print(paste0("Current department: ", input$department))
@@ -293,13 +256,9 @@ shinyServer(function(input, output, session) {
         updateSelectInput(session, inputId = "department", selected = click$x)
         print(paste0("New department: ", input$department))
       } else {
-        updateSelectInput(session, inputId = "department", selected = "All departments")
-        print(paste0("New department: ", input$department))
+        # updateSelectInput(session, inputId = "department", selected = "All departments")
+        # print(paste0("New department: ", input$department))
       }
-      
-      # js$resetDepClick()
-      
-      
       
       if (input$region == "All regions") {
         data <- loadedData()
@@ -308,38 +267,20 @@ shinyServer(function(input, output, session) {
         print(paste0("Change to region: ", tmp$region[1]))
         
         updateSelectInput(session, inputId = "region", selected = tmp$region[1])
-        
-        # js$resetRegClick()
       }
     }
-    
-    return(input$department)
   })
   
-  getSelectedSubtype <- reactive({
-    # click <- event_data("plotly_click", source = "agePlot")
-    # if (length(click)) {
-    #   # print(paste0("clicked: ", click$x))
-    #   up <- as.integer(strsplit(click$x, " ")[[1]][2])
-    #   i <- which(ageGroups == up)
-    #   selAgeGroup <- sprintf("%i to %i", ageGroups[i - 1], ageGroups[i])
-    #   
-    #   if (input$ageGroup != selAgeGroup)
-    #     updateSelectInput(session, inputId = "ageGroup", selected = click$x)
-    #   else
-    #     updateSelectInput(session, inputId = "ageGroup", selected = "All age groups")
-    # }
-    
-    return(input$subtype)
-  })
+  # TODO: subtype selection. Update while selecting serotype
+  
   
   # Returns data for selected week, region and serotype
-  subsetData <- function(data, selectedRegion = getSelectedRegion(), 
+  subsetData <- function(data, selectedRegion = input$region, 
                          selectedWeek = getSelectedWeek(), 
-                         selectedSerotype = getSelectedSerotype(), 
-                         selectedSubtype = getSelectedSubtype(),
-                         selectedDepartment = getSelectedDepartment(),
-                         selectedAgeGroup = getSelectedAgeGroup(),
+                         selectedSerotype = input$serotype, 
+                         selectedSubtype = input$subtype,
+                         selectedDepartment = input$department,
+                         selectedAgeGroup = input$ageGroup,
                          selectedYear = input$year) {
     regData <- getRegionData(data, selectedRegion)
     
@@ -347,7 +288,7 @@ shinyServer(function(input, output, session) {
       if (as.character(selectedWeek) == "All weeks") {
         firstDay <- as.Date(paste(selectedYear, "-01-01", sep = ""))
         lastDay <- as.Date(paste(selectedYear, "-12-31", sep = ""))
-          
+        
         if (input$datesType == "Date of reception")
           regData <- regData[which(regData$Date.de.reception >= firstDay &
                                      regData$Date.de.reception <= lastDay), ]
@@ -357,10 +298,10 @@ shinyServer(function(input, output, session) {
       } else {
         if (input$datesType == "Date of reception")
           regData <- regData[which(regData$Date.de.reception - selectedWeek >= 0 &
-                                   regData$Date.de.reception - selectedWeek < 7), ]
+                                     regData$Date.de.reception - selectedWeek < 7), ]
         else
           regData <- regData[which(regData$Date.isolement - selectedWeek >= 0 &
-                                   regData$Date.isolement - selectedWeek < 7), ]
+                                     regData$Date.isolement - selectedWeek < 7), ]
       }
     }
     
@@ -405,6 +346,7 @@ shinyServer(function(input, output, session) {
     
     return(regData)
   }
+  
   
   
   # Main (temporal) distribution
@@ -559,16 +501,18 @@ shinyServer(function(input, output, session) {
                      source = "mainPlot")
       }
       
-      p <- layout(p, title = paste0("Weekly distribution of ", getSelectedSerotype()," samples" , 
-                                    ifelse(getSelectedSubtype() == "All subtypes", "", paste0(" (subtype ", getSelectedSubtype(), ")")),
+      p <- layout(p, title = paste0("Weekly distribution of ", input$serotype," samples" , 
+                                    ifelse(input$subtype == "All subtypes", "", paste0(" (subtype ", input$subtype, ")")),
                                     "<br>",
-                                    "in ", getSelectedRegion(), 
-                                    ifelse(getSelectedDepartment() == "All departments", "", paste0(" (dep ", getSelectedDepartment(), ")")),
-                                    ifelse(getSelectedAgeGroup() == "All age groups", "", paste0(" (age ", getSelectedAgeGroup(), ")")),
-                                    " in ", year), titlefont = smallFont, 
+                                    "in ", input$region, 
+                                    ifelse(input$department == "All departments", "", paste0(" (dep ", input$department, ")")),
+                                    ifelse(input$ageGroup == "All age groups", "", paste0(" (age ", input$ageGroup, ")")),
+                                    " in ", year), font = smallFont, 
                   showlegend = TRUE,
-                  xaxis = list(title = "Week", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont),
-                  yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+                  xaxis = list(title = "Week", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont),
+                  yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
+      
+      event_register(p, "plotly_click")
       
       return(p)
     }
@@ -613,7 +557,7 @@ shinyServer(function(input, output, session) {
       cols[which(df$Var1 == "Unknown")] <- "Unknown"
       
       
-      selectedRegion <- getSelectedRegion()
+      selectedRegion <- input$region
       
       colors <- rep("lightblue", length(df$Var1))
       sel <- which(df$Var1 %in% otherRegions)
@@ -630,13 +574,13 @@ shinyServer(function(input, output, session) {
                  marker = list(color = "lightblue", line = list(color = colors, width = 1.5)),
                  # inherit = FALSE, # deprecated
                  source = "regPlot") %>%
-      layout(title = paste0("Regional distribution of ", getSelectedSerotype(), " samples",
-                            ifelse(getSelectedSubtype() == "All subtypes", "", paste0(" (subtype ", getSelectedSubtype(), ")")),
-                            ifelse(getSelectedAgeGroup() == "All age groups", "", paste0(" (age ", getSelectedAgeGroup(), ")")),
+      layout(title = paste0("Regional distribution of ", input$serotype, " samples",
+                            ifelse(input$subtype == "All subtypes", "", paste0(" (subtype ", input$subtype, ")")),
+                            ifelse(input$ageGroup == "All age groups", "", paste0(" (age ", input$ageGroup, ")")),
                             " <br> on week starting ", selectedWeek),
-             showlegend = FALSE, titlefont = smallFont,
-             xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont),
-             yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+             showlegend = FALSE, font = smallFont,
+             xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont),
+             yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
     
     # Regional alerts
     if (input$detectReg) {
@@ -692,6 +636,9 @@ shinyServer(function(input, output, session) {
       }
     }
     
+    event_register(p, "plotly_click")
+    # event_register(p, "plotly_chover")
+    
     return(p)
   })
   
@@ -700,7 +647,7 @@ shinyServer(function(input, output, session) {
   
   # Serotype distribution
   output$serotypePlotly <- renderPlotly({
-    selectedSerotype <- getSelectedSerotype()
+    selectedSerotype <- input$serotype
     
     data <- loadedData()
     
@@ -726,15 +673,15 @@ shinyServer(function(input, output, session) {
                  x = ~Var1, y = ~Freq, type = "bar", # barmode = "stack",
                  marker = list(color = "lightblue", line = list(color = colors, width = 1.5)),
                  source = "serPlot") %>%
-      layout(title = paste0("Serotype distribution in ", getSelectedRegion(), 
-                            # ifelse(getSelectedSubtype() == "All subtypes", "", paste0(" (subtype ", getSelectedSubtype(), ")")),
-                            ifelse(getSelectedDepartment() == "All departments", "", paste0(" (dep ", getSelectedDepartment(), ")")),
-                            ifelse(getSelectedAgeGroup() == "All age groups", "", paste0(" (age ", getSelectedAgeGroup(), ")")),
+      layout(title = paste0("Serotype distribution in ", input$region, 
+                            # ifelse(input$subtype == "All subtypes", "", paste0(" (subtype ", input$subtype, ")")),
+                            ifelse(input$department == "All departments", "", paste0(" (dep ", input$department, ")")),
+                            ifelse(input$ageGroup == "All age groups", "", paste0(" (age ", input$ageGroup, ")")),
                             "<br> on week starting ", getSelectedWeek()),
-             titlefont = smallFont,
+             font = smallFont,
              showlegend = FALSE,
-             xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont),
-             yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+             xaxis = list(title = "", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont),
+             yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
     
     
     if (input$detectSer) {
@@ -793,6 +740,9 @@ shinyServer(function(input, output, session) {
         }
       }
     }
+    
+    event_register(p, "plotly_click")
+    event_register(p, "plotly_hover")
     
     return(p)
   })
@@ -872,7 +822,7 @@ shinyServer(function(input, output, session) {
     #################################################################
     if (graphChoice == "ser") {
       if (strChoice == "")
-        strChoice <- getSelectedSerotype()
+        strChoice <- input$serotype
       
       serotype <- strChoice
       
@@ -924,16 +874,18 @@ shinyServer(function(input, output, session) {
                    textfont = smallFont,
                    hole = 0.3,
                    showlegend = FALSE
-                   #'font', 'title', 'titlefont', 'autosize', 'width', 'height', 'margin', 'paper_bgcolor', 'plot_bgcolor', 'separators', 'hidesources', 'smith', 'showlegend', 'dragmode', 'hovermode', 'xaxis', 'yaxis', 'scene', 'geo', 'legend', 'annotations', 'shapes', 'images', 'updatemenus', 'ternary', 'mapbox', 'radialaxis', 'angularaxis', 'direction', 'orientation', 'barmode', 'bargap', 'mapType'
+                   #'font', 'title', 'font', 'autosize', 'width', 'height', 'margin', 'paper_bgcolor', 'plot_bgcolor', 'separators', 'hidesources', 'smith', 'showlegend', 'dragmode', 'hovermode', 'xaxis', 'yaxis', 'scene', 'geo', 'legend', 'annotations', 'shapes', 'images', 'updatemenus', 'ternary', 'mapbox', 'radialaxis', 'angularaxis', 'direction', 'orientation', 'barmode', 'bargap', 'mapType'
       ) %>%
-        layout(title = paste0("Breakdown of ", serotype, " by ", resolution, " <br> in ", getSelectedRegion(), 
-                              ifelse(getSelectedDepartment() == "All departments", "", paste0(" (dep ", getSelectedDepartment(), ")")),
-                              ifelse(getSelectedAgeGroup() == "All age groups", "", paste0(" (age ", getSelectedAgeGroup(), ")")),
+        layout(title = paste0("Breakdown of ", serotype, " by ", resolution, " <br> in ", input$region, 
+                              ifelse(input$department == "All departments", "", paste0(" (dep ", input$department, ")")),
+                              ifelse(input$ageGroup == "All age groups", "", paste0(" (age ", input$ageGroup, ")")),
                               " on week starting ", getSelectedWeek()),
-               titlefont = smallFont,
+               font = smallFont,
                # legend = list(font = smallFont),
                xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
                yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+      
+      event_register(p, "plotly_click")
       
       return(p)
     }
@@ -965,8 +917,8 @@ shinyServer(function(input, output, session) {
       
       # Find the selected age group and colour it
       ages <- sapply(1:nrow(df), function(i) as.integer(strsplit(levels(df$ages)[i], " ")[[1]][2]))
-      if (getSelectedAgeGroup() != "All age groups") {
-        val <- as.integer(strsplit(getSelectedAgeGroup(), " ")[[1]][1]) - 1
+      if (input$ageGroup != "All age groups") {
+        val <- as.integer(strsplit(input$ageGroup, " ")[[1]][1]) - 1
         if (!is.na(val)) {
           if (val == -1)
             colors[which(ages == 1)] <- "red"
@@ -980,16 +932,18 @@ shinyServer(function(input, output, session) {
                    name = "Age", marker = list(color = "salmon", line = list(color = colors, width = 1.5)),
                    source = "agePlot"
       ) %>%
-        layout(title = paste0("Age distr. of ", getSelectedSerotype(), 
-                              ifelse(getSelectedSubtype() == "All subtypes", "", paste0(" (subtype ", getSelectedSubtype(), ")")),
-                              " samples <br> in ", getSelectedRegion(), 
-                              ifelse(getSelectedDepartment() == "All departments", "", paste0(" (dep ", getSelectedDepartment(), ")")),
+        layout(title = paste0("Age distr. of ", input$serotype, 
+                              ifelse(input$subtype == "All subtypes", "", paste0(" (subtype ", input$subtype, ")")),
+                              " samples <br> in ", input$region, 
+                              ifelse(input$department == "All departments", "", paste0(" (dep ", input$department, ")")),
                               " on",
                               ifelse(as.character(selDate) == "All weeks", " all weeks", paste0(" week starting ", selDate))), 
-               titlefont = smallFont,
+               font = smallFont,
                showlegend = FALSE,
-               xaxis = list(title = "Age", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, titlefont = smallFont, tickfont = smallFont, tickangle = 0),
-               yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, titlefont = smallFont, tickfont = smallFont))
+               xaxis = list(title = "Age", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, font = smallFont, tickfont = smallFont, tickangle = 0),
+               yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, font = smallFont, tickfont = smallFont))
+      
+      event_register(p, "plotly_click")
       
       return(p)
     }
@@ -997,7 +951,7 @@ shinyServer(function(input, output, session) {
     #################################################################
     if (graphChoice == "reg") {
       if (strChoice == "")
-        strChoice <- getSelectedRegion()
+        strChoice <- input$region
       
       regData <- subsetData(data, selectedRegion = strChoice, selectedDepartment = "All departments")
       
@@ -1028,15 +982,17 @@ shinyServer(function(input, output, session) {
                    name = "Departements",
                    source = "depPlot"
       ) %>%
-        layout(title = paste0("Dep. distr. of ", getSelectedSerotype(), 
-                              ifelse(getSelectedSubtype() == "All subtypes", "", paste0(" (subtype ", getSelectedSubtype(), ")")),
-                              " samples <br> in ", getSelectedRegion(), 
-                              ifelse(getSelectedAgeGroup() == "All age groups", "", paste0(" (age ", getSelectedAgeGroup(), ")")),
+        layout(title = paste0("Dep. distr. of ", input$serotype, 
+                              ifelse(input$subtype == "All subtypes", "", paste0(" (subtype ", input$subtype, ")")),
+                              " samples <br> in ", input$region, 
+                              ifelse(input$ageGroup == "All age groups", "", paste0(" (age ", input$ageGroup, ")")),
                               " on week starting ", getSelectedWeek()),
-               titlefont = smallFont,
+               font = smallFont,
                showlegend = FALSE,
-               xaxis = list(title = "Departement", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, titlefont = smallFont, tickfont = smallFont, tickangle = 0),
-               yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, titlefont = smallFont, tickfont = smallFont))
+               xaxis = list(title = "Departement", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, font = smallFont, tickfont = smallFont, tickangle = 0),
+               yaxis = list(title = "Number of samples", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, font = smallFont, tickfont = smallFont))
+      
+      event_register(p, "plotly_click")
       
       return(p)
     }
@@ -1057,7 +1013,7 @@ shinyServer(function(input, output, session) {
     
     if (is.null(data)) {
       plotly_empty(type = "scatter", mode = "markers") %>%
-        layout(title = "<- Please upload data", titlefont = list(
+        layout(title = "<- Please upload data", font = list(
           # family = 'Courier New, monospace',
           size = 18, color = "red"#'#7f7f7f'
         ))
@@ -1192,10 +1148,13 @@ shinyServer(function(input, output, session) {
                                     sep = "")
       )
       
-      p <- layout(p, title = paste0("Projection for ", input$region, " ", " samples in ", input$year, sep = ""), titlefont = smallFont,
+      p <- layout(p, title = paste0("Projection for ", input$region, " ", " samples in ", input$year, sep = ""), font = smallFont,
                   legend = list(font = smallFont),
-                  xaxis = list(title = "Week number", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont),
-                  yaxis = list(side = 'left', title = 'Number of samples', showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+                  xaxis = list(title = "Week number", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont),
+                  yaxis = list(side = 'left', title = 'Number of samples', showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
+      
+      event_register(p, "plotly_click")
+      
       return(p)
     }
   })
@@ -1325,7 +1284,7 @@ shinyServer(function(input, output, session) {
     
     if (is.null(sData)) {
       plotly_empty(type = "scatter", mode = "markers") %>%
-        layout(title = "<- Please upload data", titlefont = list(
+        layout(title = "<- Please upload data", font = list(
           # family='Courier New, monospace',
           size = 18,
           color = "red"#'#7f7f7f'
@@ -1393,8 +1352,8 @@ shinyServer(function(input, output, session) {
                    name = "Clusters",
                    source = "clustHistPlot") %>%
         layout(title = "", 
-               xaxis = list(title = "CT", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont), 
-               yaxis = list(title = "Number of clusters", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+               xaxis = list(title = "CT", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont), 
+               yaxis = list(title = "Number of clusters", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
       
       event_register(p, "plotly_click")
       
@@ -1412,7 +1371,7 @@ shinyServer(function(input, output, session) {
       # plot.new()
       # title("Please upload data", col.main = "red")
       plotly_empty(type = "scatter", mode = "markers") %>%
-        layout(title = "", titlefont = list(
+        layout(title = "", font = list(
           # family='Courier New, monospace',
           size = 18,
           color = "red"#'#7f7f7f'
@@ -1508,9 +1467,9 @@ shinyServer(function(input, output, session) {
                      source = "clustPlotly") %>%
           layout(title = paste("CT_", CT, " in ", year, sep = ""), font = smallFont,
                  legend = list(font = smallFont),
-                 xaxis = list(title = "Department", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont), 
+                 xaxis = list(title = "Department", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont), 
                  yaxis = list(title = "", #"Date of isolation", 
-                              showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+                              showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
         
         
         clustN <- 0
@@ -1549,8 +1508,8 @@ shinyServer(function(input, output, session) {
           layout(#title = paste("CT_", CT, " in ", year, sep = ""), 
             font = smallFont,
             legend = list(font = smallFont),
-            xaxis = list(title = "Department", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont), 
-            yaxis = list(title = "", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+            xaxis = list(title = "Department", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont), 
+            yaxis = list(title = "", showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
         
       }
       
@@ -1582,21 +1541,21 @@ shinyServer(function(input, output, session) {
         extraInfo <- "See age distribution"
       }
       
-      selRegion <- getSelectedRegion()
+      selRegion <- input$region
       s <- event_data("plotly_hover", source = "regPlot")
       if (length(s)) {
         selRegion <- s$x
         extraInfo <- "See departement distribution"
       }
       
-      selSerotype <- getSelectedSerotype()
+      selSerotype <- input$serotype
       s <- event_data("plotly_hover", source = "serPlot")
       if (length(s)) {
         selSerotype <- s$x
         extraInfo <- "See MLST/CT distribution"
       }
       
-      print(paste0("sel dtae: ", selDate))
+      print(paste0("sel date: ", selDate))
       
       # Subset data
       regData <- subsetData(data, selectedRegion = selRegion,
@@ -1644,10 +1603,10 @@ shinyServer(function(input, output, session) {
       res <- paste0("Selected week: ", ifelse(as.character(selDate) == "All weeks", 
                                               "all weeks", paste0(data.table::isoweek(selDate), " (", selDate, " - ", selDate + 6, ")")), "\n",
                     "Selected region: ", selRegion, "\n",
-                    "Selected department: ", getSelectedDepartment(), "\n",
+                    "Selected department: ", input$department, "\n",
                     "Selected serotype: ", selSerotype, "\n",
-                    "Selected subtype: ", getSelectedSubtype(), "\n",
-                    "Selected age group: ", getSelectedAgeGroup(), "\n",
+                    "Selected subtype: ", input$subtype, "\n",
+                    "Selected age group: ", input$ageGroup, "\n",
                     # extraInfo, "\n",
                     numInfo, "\n"
                     # dataInfo, "\n\n\n\n\n\n\n\n"
@@ -1666,13 +1625,13 @@ shinyServer(function(input, output, session) {
     
     if (is.null(data)) {
       plotly_empty(type = "scatter", mode = "markers") %>%
-        layout(title = "<- Please upload data", titlefont = list(
+        layout(title = "<- Please upload data", font = list(
           # family = 'Courier New, monospace',
           size = 18, color = "red"#'#7f7f7f'
         ))
     } else {
-      xdata <- subsetData(data, selectedRegion = getSelectedRegion(), selectedWeek = "All weeks", 
-                         selectedSerotype = getSelectedSerotype())
+      xdata <- subsetData(data, selectedRegion = input$region, selectedWeek = "All weeks", 
+                         selectedSerotype = input$serotype)
       
       h <- getMonthlyHist(xdata, input$datesType)
       
@@ -1688,8 +1647,8 @@ shinyServer(function(input, output, session) {
       colorPal <- rgb(colorPal[, 1] / 255, colorPal[, 2] / 255, colorPal[, 3] / 255)
       
       for (yr in (as.integer(input$year) - 1):2010) {
-        xdata <- subsetData(data, selectedRegion = getSelectedRegion(), selectedWeek = "All weeks", 
-                           selectedSerotype = getSelectedSerotype(), selectedYear = yr)
+        xdata <- subsetData(data, selectedRegion = input$region, selectedWeek = "All weeks", 
+                           selectedSerotype = input$serotype, selectedYear = yr)
         hPrev <- getMonthlyHist(xdata, input$datesType)
         
         do.call("<-", list(paste("h", yr, sep = ""), hPrev))
@@ -1711,11 +1670,14 @@ shinyServer(function(input, output, session) {
                      hoverinfo = "text",
                      text = paste("Average", signif(meanCounts, 2), 'samples in', month.name[1:12]))
       
-      p <- layout(p, title = paste0("Monthly case counts of ", getSelectedSerotype(), " for ", 
-                                    input$region, " ", " samples in ", input$year, sep = ""), titlefont = smallFont,
+      p <- layout(p, title = paste0("Monthly case counts of ", input$serotype, " for ", 
+                                    input$region, " ", " samples in ", input$year, sep = ""), font = smallFont,
                   legend = list(font = smallFont),
-                  xaxis = list(title = "Month", type = "category", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont),
-                  yaxis = list(side = 'left', title = 'Number of samples', showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, titlefont = smallFont))
+                  xaxis = list(title = "Month", type = "category", showgrid = FALSE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont),
+                  yaxis = list(side = 'left', title = 'Number of samples', showgrid = TRUE, zeroline = FALSE, showticklabels = TRUE, tickfont = smallFont, font = smallFont))
+      
+      event_register(p, "plotly_click")
+      
       return(p)
     }
   })

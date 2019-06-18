@@ -15,9 +15,9 @@ library(ISOweek)
 shinyUI(
   fluidPage(
     # Application title
-    # titlePanel("Estimation of WGS capacity"),
+    # titlePanel("Salmonella Shiny App"),
     
-    # Sidebar with a slider input for number of bins 
+    # Sidebar with a input controls 
     sidebarLayout(
       sidebarPanel(width = 2, 
                    fileInput('file', 'Choose CSV file:', accept = c('text/csv', 'text/comma-separated-values,text/plain', '.csv')),
@@ -49,27 +49,12 @@ shinyUI(
                    
                    checkboxInput("detectReg", "Regional alerts", FALSE),
                    checkboxInput("detectSer", "Serotype alerts", FALSE)
-                   
-                   
-                   # selectInput("curWeek", "Current week:",
-                   #             c(NA, 0:52), selected = NA),
-                   
-                   # sliderInput("highSeasonRange", "High season (weeks):",
-                   #             min = 0, max = 52, value = c(29, 40)),
-                   
-                   
       ),
       
-      # Show a plot of the generated distribution
       mainPanel(
-        # plotOutput("distPlot"),,
-        
         tableOutput("contents"),
         
         tabsetPanel(
-          # tabPanel("Total", plotOutput("distPlot")),
-          # tabPanel("Summary", verbatimTextOutput("summary")),
-          # tabPanel("Table", tableOutput("table"))
           tabPanel("Distributions",
                    
                    column(6, 
@@ -98,38 +83,7 @@ shinyUI(
                    
                    column(6, div(dataTableOutput("table"), style = "font-size:80%"))
           ),
-          # tabPanel("Distributions (old)",
-          #          
-          #          column(6, 
-          #                 tags$div(
-          #                   style = "margin-top:20px;margin-bottom:20px;",
-          #                   plotlyOutput("mainPlotly", height = 300)
-          #                 ),
-          #                 tags$div(
-          #                   style = "margin-top:30px;margin-bottom:20px;",
-          #                   plotlyOutput("regionalPlotly", height = 150)
-          #                 ),
-          #                 tags$div(
-          #                   style = "margin-top:30px;margin-bottom:20px;",
-          #                   plotlyOutput("mapPlotly", height = 200)
-          #                 )
-          #          ),
-          #          
-          #          column(6, 
-          #                 tags$div(
-          #                   style = "margin-top:20px;margin-bottom:20px;",
-          #                   plotlyOutput("mainRegPlotly", height = 300)
-          #                 ),
-          #                 tags$div(
-          #                   style = "margin-top:30px;margin-bottom:20px;",
-          #                   plotlyOutput("serotypePlotly", height = 150)
-          #                 ),
-          #                 tags$div(
-          #                   style = "margin-top:30px;margin-bottom:20px;",
-          #                   plotlyOutput("stPlotly", height = 200)
-          #                 )
-          #          )
-          # ),
+          
           tabPanel("Projections",
                    tags$div(
                      style = "margin-top:20px;margin-bottom:20px;",
@@ -150,6 +104,7 @@ shinyUI(
                                value = 0.7,
                                step = 0.01)
           ),
+          
           tabPanel("Case clusters", 
                    fluidRow(
                      splitLayout(cellWidths = c("30%", "70%"),
@@ -168,17 +123,13 @@ shinyUI(
                    sliderInput("threshold", "Threshold (cases):",
                                min = 0, max = 30, value = 3)
           ),
+          
           tabPanel("Monthly cases", 
                    tags$div(
                      style = "margin-top:20px;margin-bottom:20px;",
                      plotlyOutput("monthlyHist")
                    )
           )
-          # ,
-          # tabPanel("Test", 
-          #          # plotOutput("testPlot"),
-          #          verbatimTextOutput("info")
-          # )
         )
       )
       
